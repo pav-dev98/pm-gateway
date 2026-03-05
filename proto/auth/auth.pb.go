@@ -149,7 +149,7 @@ const file_proto_auth_auth_proto_rawDesc = "" +
 	"\n" +
 	"token_type\x18\x03 \x01(\tR\ttokenType2?\n" +
 	"\vAuthService\x120\n" +
-	"\x05Login\x12\x12.auth.LoginRequest\x1a\x13.auth.LoginResponseB+Z)github.com/pav-dev98/pmgateway/proto/authb\x06proto3"
+	"\x05Login\x12\x12.auth.LoginRequest\x1a\x13.auth.LoginResponseB,Z*github.com/pav-dev98/pm-gateway/proto/authb\x06proto3"
 
 var (
 	file_proto_auth_auth_proto_rawDescOnce sync.Once

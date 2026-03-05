@@ -3,9 +3,9 @@ package main
 import (
     "log"
     "github.com/gin-gonic/gin"
-    "github.com/pav-dev98/pmgateway/config"
-    "github.com/pav-dev98/pmgateway/internal/handlers"
-    "github.com/pav-dev98/pmgateway/internal/middleware"
+    "github.com/pav-dev98/pm-gateway/config"
+    "github.com/pav-dev98/pm-gateway/internal/handlers"
+    "github.com/pav-dev98/pm-gateway/internal/middleware"
 )
 
 func main() {

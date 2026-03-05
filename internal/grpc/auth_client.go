@@ -8,7 +8,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	pb "github.com/pav-dev98/pmgateway/proto/auth"
+	pb "github.com/pav-dev98/pm-gateway/proto/auth"
 )
 
 // AuthClient encapsula la conexión gRPC con el Auth service

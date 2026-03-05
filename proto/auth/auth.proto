@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package auth;
 
-option go_package = "github.com/pav-dev98/pmgateway/proto/auth";
+option go_package = "github.com/pav-dev98/pm-gateway/proto/auth";
 
 // El servicio Auth
 service AuthService {

@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 	"github.com/gin-gonic/gin"
-	"github.com/pav-dev98/pmgateway/config"
+	"github.com/pav-dev98/pm-gateway/config"
 )
 
 func GetUsers(cfg *config.Config) gin.HandlerFunc {
