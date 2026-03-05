@@ -1,0 +1,19 @@
+# Binarios
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/bin/
+
+# Go
+*.test
+*.out
+go.sum
+
+# Env
+.env
+
+# IDE
+.vscode/
+.idea/
