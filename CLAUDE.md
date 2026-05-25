@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this service does
 
-`pm-gateway` is an API Gateway built with Go/Gin. It exposes REST endpoints and routes traffic to backend microservices via gRPC. It handles JWT validation centrally so downstream services don't need to.
+`pm-gateway` is an API Gateway built with Go and [grpc-gateway](https://github.com/grpc-ecosystem/grpc-gateway). It exposes a REST/JSON surface and translates each request into a gRPC call against the corresponding backend microservice. JWT validation is enforced centrally so downstream services don't need to repeat it.
 
 ## Commands
 
 ```bash
-go run ./cmd/main.go          # run the gateway
+go run ./cmd/main.go                  # run the gateway
 go build -o pm-gateway ./cmd/main.go  # build binary
-go test ./...                 # run tests (none exist yet)
+go test ./...                         # run tests (none exist yet)
 ```
 
 Environment is loaded from `.env` via `godotenv`. Copy the existing `.env` and adjust values before running.
@@ -19,29 +19,30 @@ Environment is loaded from `.env` via `godotenv`. Copy the existing `.env` and a
 ## Architecture
 
 ```
-HTTP client
+HTTP/JSON client (Next.js frontend)
     ↓
-Gin router (cmd/main.go)
-    ├─ Middleware: CORS → Logger → JWT auth (on protected routes)
-    ├─ Public:    POST /auth/login, POST /auth/register
-    └─ Protected: GET  /api/users, GET /api/users/:id
-        ↓
-gRPC clients (internal/grpc/)
-    ├─ Auth Service  @ AUTH_SERVICE_ADDR (default :50051)
-    └─ User Service  @ USER_SERVICE_ADDR (default :50052)  ← stubbed
+net/http server (cmd/main.go)
+    ├─ Middleware chain: CORS → Logger → JWT auth (skips /v1/auth/*)
+    └─ runtime.ServeMux (grpc-gateway)
+        ↓ HTTP↔gRPC translation generated in pm-proto
+        ├─ Auth Service  @ AUTH_SERVICE_ADDR (default :50051)
+        │     POST /v1/auth/login
+        │     POST /v1/auth/register
+        └─ User Service  @ USER_SERVICE_ADDR (default :50052)  ← not registered yet
 ```
 
 **Packages:**
-- `cmd/main.go` — router setup, middleware wiring, route registration
-- `config/config.go` — reads env vars; provides `Config` struct with `Port`, `JWTSecret`, `AuthServiceAddr`, `UserServiceAddr`
-- `internal/handlers/auth.go` — Login (implemented), Register (stub)
-- `internal/handlers/users.go` — GetUsers / GetUser (stubs pending User Service gRPC)
-- `internal/middleware/auth.go` — JWT validation; injects claims into Gin context
-- `internal/grpc/auth_client.go` — thin gRPC wrapper around `AuthServiceClient`
+- `cmd/main.go` — builds the grpc-gateway mux, registers service handlers, wraps with middleware, starts the HTTP server.
+- `config/config.go` — reads env vars; provides `Config` struct with `Port`, `JWTSecret`, `AuthService`, `UserService`.
+- `internal/middleware/cors.go` — CORS headers, handles preflight OPTIONS.
+- `internal/middleware/logger.go` — request logger (method, path, duration).
+- `internal/middleware/auth.go` — JWT validation. Paths under `/v1/auth/` are public; everything else requires a valid `Bearer` token signed with `JWT_SECRET`.
 
 ## Proto / gRPC
 
-Proto definitions live in the external module `github.com/pav-dev98/pm-proto` (repo: `pav-dev98/pm-proto`). Generated types are imported directly — do not add `.proto` files to this repo. To update proto, bump the module version in `go.mod` and run `go mod tidy`.
+Proto definitions and generated code live in the external module `github.com/pav-dev98/pm-proto` (repo: `pav-dev98/pm-proto`). That module also publishes the grpc-gateway reverse-proxy code (`*.pb.gw.go`). HTTP routes are declared with `google.api.http` annotations in the `.proto` files — to change a route, edit the proto in `pm-proto`, regenerate, publish a new version, and bump the module here with `go get github.com/pav-dev98/pm-proto@latest && go mod tidy`.
+
+To register a new service in the gateway, import its package and call its `RegisterXxxHandlerFromEndpoint` against the shared `runtime.ServeMux` in `cmd/main.go`.
 
 ## Environment variables
 
@@ -54,7 +55,7 @@ Proto definitions live in the external module `github.com/pav-dev98/pm-proto` (r
 
 ## Current status
 
-- Auth login flow is fully implemented end-to-end (HTTP → gRPC → Auth Service → JWT tokens returned).
-- Register, GetUsers, and GetUser are stubs returning placeholder strings — User Service gRPC integration is not yet done.
-- gRPC connections use insecure credentials (no TLS) — intentional for local dev.
+- Auth service is wired through grpc-gateway: `POST /v1/auth/login` and `POST /v1/auth/register` proxy directly to the Auth gRPC service.
+- User service handler is not registered yet — proto definitions in `pm-proto/users` are still empty.
+- gRPC dial uses insecure credentials (no TLS) — intentional for local dev.
 - No tests exist yet.

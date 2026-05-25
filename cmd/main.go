@@ -1,36 +1,38 @@
 package main
 
 import (
-    "log"
-    "github.com/gin-gonic/gin"
-    "github.com/pav-dev98/pm-gateway/config"
-    "github.com/pav-dev98/pm-gateway/internal/handlers"
-    "github.com/pav-dev98/pm-gateway/internal/middleware"
+	"context"
+	"log"
+	"net/http"
+
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/pav-dev98/pm-gateway/config"
+	"github.com/pav-dev98/pm-gateway/internal/middleware"
+	authpb "github.com/pav-dev98/pm-proto/auth"
 )
 
 func main() {
-    cfg := config.Load()
-    r := gin.Default()
+	cfg := config.Load()
 
-    // Middleware global
-    r.Use(middleware.Logger())
-    r.Use(middleware.CORS())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-    // Rutas públicas
-    auth := r.Group("/auth")
-    {
-        auth.POST("/login", handlers.Login(cfg))
-        auth.POST("/register", handlers.Register(cfg))
-    }
+	gwmux := runtime.NewServeMux()
+	dialOpts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	}
 
-    // Rutas protegidas
-    api := r.Group("/api")
-    api.Use(middleware.Auth(cfg)) // valida JWT aquí
-    {
-        api.GET("/users", handlers.GetUsers(cfg))
-        api.GET("/users/:id", handlers.GetUser(cfg))
-    }
+	if err := authpb.RegisterAuthServiceHandlerFromEndpoint(ctx, gwmux, cfg.AuthService, dialOpts); err != nil {
+		log.Fatalf("no se pudo registrar el Auth gateway: %v", err)
+	}
 
-    log.Printf("Gateway corriendo en puerto %s", cfg.Port)
-    r.Run(":" + cfg.Port)
+	handler := middleware.CORS(middleware.Logger(middleware.Auth(cfg)(gwmux)))
+
+	log.Printf("Gateway corriendo en puerto %s", cfg.Port)
+	if err := http.ListenAndServe(":"+cfg.Port, handler); err != nil {
+		log.Fatalf("servidor HTTP terminó: %v", err)
+	}
 }

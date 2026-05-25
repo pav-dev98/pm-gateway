@@ -1,34 +1,57 @@
 package middleware
 
 import (
-    "net/http"
-    "strings"
-    "github.com/gin-gonic/gin"
-    "github.com/golang-jwt/jwt/v5"
-    "github.com/pav-dev98/pm-gateway/config"
+	"encoding/json"
+	"net/http"
+	"strings"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/pav-dev98/pm-gateway/config"
 )
 
-func Auth(cfg *config.Config) gin.HandlerFunc {
-    return func(c *gin.Context) {
-        header := c.GetHeader("Authorization")
-        if header == "" || !strings.HasPrefix(header, "Bearer ") {
-            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token requerido"})
-            return
-        }
+var publicPrefixes = []string{
+	"/v1/auth/",
+}
 
-        tokenStr := strings.TrimPrefix(header, "Bearer ")
-        token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
-            return []byte(cfg.JWTSecret), nil
-        })
+func isPublic(path string) bool {
+	for _, p := range publicPrefixes {
+		if strings.HasPrefix(path, p) {
+			return true
+		}
+	}
+	return false
+}
 
-        if err != nil || !token.Valid {
-            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token inválido"})
-            return
-        }
+func Auth(cfg *config.Config) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if isPublic(r.URL.Path) {
+				next.ServeHTTP(w, r)
+				return
+			}
 
-        // Pasar el userID al siguiente handler
-        claims := token.Claims.(jwt.MapClaims)
-        c.Set("userID", claims["sub"])
-        c.Next()
-    }
+			header := r.Header.Get("Authorization")
+			if header == "" || !strings.HasPrefix(header, "Bearer ") {
+				writeError(w, http.StatusUnauthorized, "token requerido")
+				return
+			}
+
+			tokenStr := strings.TrimPrefix(header, "Bearer ")
+			token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+				return []byte(cfg.JWTSecret), nil
+			})
+			if err != nil || !token.Valid {
+				writeError(w, http.StatusUnauthorized, "token inválido")
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func writeError(w http.ResponseWriter, status int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
