@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -21,6 +22,7 @@ func main() {
 	defer cancel()
 
 	gwmux := runtime.NewServeMux()
+
 	dialOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}
@@ -29,7 +31,22 @@ func main() {
 		log.Fatalf("no se pudo registrar el Auth gateway: %v", err)
 	}
 
-	handler := middleware.CORS(middleware.Logger(middleware.Auth(cfg)(gwmux)))
+	mux := http.NewServeMux()
+
+	// tu API
+	mux.Handle("/", gwmux)
+
+	// sirve el json
+	mux.HandleFunc("/swagger.json", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "docs/api.swagger.json")
+	})
+
+	// sirve la UI
+	mux.Handle("/swagger/", httpSwagger.Handler(
+		httpSwagger.URL("/swagger.json"),
+	))
+
+	handler := middleware.CORS(middleware.Logger(middleware.Auth(cfg)(mux)))
 
 	log.Printf("Gateway corriendo en puerto %s", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, handler); err != nil {

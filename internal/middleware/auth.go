@@ -11,6 +11,8 @@ import (
 
 var publicPrefixes = []string{
 	"/v1/auth/",
+	"/swagger/",
+	"/swagger.json",
 }
 
 func isPublic(path string) bool {
